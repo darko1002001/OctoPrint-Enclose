@@ -1,15 +1,22 @@
 # coding=utf-8
 from __future__ import absolute_import
+from timer import *
 
 import octoprint.plugin
 
 import requests
+
 
 class EnclosePlugin(octoprint.plugin.StartupPlugin,
 					octoprint.plugin.ProgressPlugin,
 					octoprint.plugin.EventHandlerPlugin,
 					octoprint.plugin.SettingsPlugin,
 					octoprint.plugin.TemplatePlugin):
+	TIMER_DURATION = 60 * 3
+
+	def __init__(self):
+		self.timer = None
+
 	def on_after_startup(self):
 		self._logger.info("OctoEnclosure (on host: %s)" % self._settings.get(["hostname"]))
 
@@ -29,18 +36,34 @@ class EnclosePlugin(octoprint.plugin.StartupPlugin,
 		return dict(
 		)
 
+	def keep_alive(self):
+		self._logger.info("OctoEnclosure keeping alive")
+		self.execute_request("keepAlive")
+
+	def start_timer(self):
+		self.stop_timer()
+		self.timer = Timer(EnclosePlugin.TIMER_DURATION, self.keep_alive)
+		self.timer.start()
+
+	def stop_timer(self):
+		if self.timer:
+			self.timer.cancel()
+			self.timer = None
+
 	def on_print_progress(self, storage, path, progress):
 		self._logger.info("OctoEnclosure print progress: %s)" % progress)
-		self.execute_request("keepAlive")
+		self.keep_alive()
 
 	def on_event(self, event, payload):
 		if event == octoprint.events.Events.PRINT_STARTED:
 			self._logger.info("print started  %s)" % event)
 			self.execute_request("ledOn?r=1023&g=1023&b=1023")
 			self.execute_request("fanOn")
+			self.start_timer()
 		elif event == octoprint.events.Events.PRINT_DONE:
 			self._logger.info("print done %s)" % event)
 			self.execute_request("ledOn?r=200&g=1023&b=200")
+			self.stop_timer()
 		elif event in [octoprint.events.Events.CONNECTED,
 					   octoprint.events.Events.DISCONNECTED,
 					   octoprint.events.Events.PRINT_CANCELLED,
@@ -48,10 +71,12 @@ class EnclosePlugin(octoprint.plugin.StartupPlugin,
 					   octoprint.events.Events.PRINT_RESUMED]:
 			self._logger.info("event action needed %s" % event)
 			self.execute_request("ledOn?r=800&g=800&b=800")
+			self.stop_timer()
 		elif event in [octoprint.events.Events.PRINT_FAILED,
 					   octoprint.events.Events.ERROR]:
 			self._logger.info("event error %s" % event)
 			self.execute_request("ledOn?r=1023&g=200&b=200")
+			self.stop_timer()
 		else:
 			self._logger.info("event received %s" % event)
 
