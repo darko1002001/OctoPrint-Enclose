@@ -1,6 +1,6 @@
 # coding=utf-8
 from __future__ import absolute_import
-from timer import *
+from octoprint_enclose.timer import *
 
 import octoprint.plugin
 
