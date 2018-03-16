@@ -65,7 +65,6 @@ class EnclosePlugin(octoprint.plugin.StartupPlugin,
 			self.execute_request("ledOn?r=200&g=1023&b=200")
 			self.stop_timer()
 		elif event in [octoprint.events.Events.CONNECTED,
-					   octoprint.events.Events.DISCONNECTED,
 					   octoprint.events.Events.PRINT_CANCELLED,
 					   octoprint.events.Events.PRINT_PAUSED,
 					   octoprint.events.Events.PRINT_RESUMED]:
@@ -75,7 +74,7 @@ class EnclosePlugin(octoprint.plugin.StartupPlugin,
 		elif event in [octoprint.events.Events.PRINT_FAILED,
 					   octoprint.events.Events.ERROR]:
 			self._logger.info("event error %s" % event)
-			self.execute_request("ledOn?r=1023&g=200&b=200")
+			self.execute_request("ledOn?r=1023&g=500&b=500")
 			self.stop_timer()
 		else:
 			self._logger.info("event received %s" % event)
