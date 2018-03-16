@@ -1,8 +1,10 @@
 # coding=utf-8
 from __future__ import absolute_import
 from octoprint_enclose.timer import *
+from gpiozero import Button
 
 import octoprint.plugin
+import RPi.GPIO as GPIO
 
 import requests
 
@@ -16,16 +18,35 @@ class EnclosePlugin(octoprint.plugin.StartupPlugin,
 
 	def __init__(self):
 		self.timer = None
+		self.currentPowerState = False
+		self.enclosureGPIOButtonPin = 0
+		self.powerGPIOButtonPin = 0
+		self.powerGPIORelayPin = 0
 
 	def on_after_startup(self):
 		self._logger.info("OctoEnclosure (on host: %s)" % self._settings.get(["hostname"]))
 
-	##~~ SettingsPlugin mixin
+		GPIO.setmode(GPIO.BCM)
+		GPIO.setup(self.powerGPIORelayPin, GPIO.OUT)
+		GPIO.output(self.powerGPIORelayPin, GPIO.LOW)
+
+		button_enclosure = Button(self.enclosureGPIOButtonPin, hold_time=2)
+		button_power = Button(self.powerGPIOButtonPin, hold_time=2)
+		button_enclosure.when_held = self.enclosure_callback
+		button_power.when_held = self.power_callback
 
 	def get_settings_defaults(self):
 		return dict(
-			hostname=""
+			hostname="",
+			enclosureGPIOButtonPin=18,
+			powerGPIOButtonPin=23,
+			powerGPIORelayPin=4
 		)
+
+	def on_settings_initialized(self):
+		self.enclosureGPIOButtonPin = self._settings.get_int(["enclosureGPIOButtonPin"])
+		self.powerGPIOButtonPin = self._settings.get_int(["powerGPIOButtonPin"])
+		self.powerGPIORelayPin = self._settings.get_int(["powerGPIORelayPin"])
 
 	def get_template_configs(self):
 		return [
@@ -65,23 +86,20 @@ class EnclosePlugin(octoprint.plugin.StartupPlugin,
 			self.execute_request("ledOn?r=200&g=1023&b=200")
 			self.stop_timer()
 		elif event in [octoprint.events.Events.CONNECTED,
-					   octoprint.events.Events.DISCONNECTED,
 					   octoprint.events.Events.PRINT_CANCELLED,
 					   octoprint.events.Events.PRINT_PAUSED,
 					   octoprint.events.Events.PRINT_RESUMED]:
 			self._logger.info("event action needed %s" % event)
 			self.execute_request("ledOn?r=800&g=800&b=800")
 			self.stop_timer()
-		elif event in [octoprint.events.Events.PRINT_FAILED,
-					   octoprint.events.Events.ERROR]:
+		elif event in [octoprint.events.Events.PRINT_FAILED]:
 			self._logger.info("event error %s" % event)
-			self.execute_request("ledOn?r=1023&g=200&b=200")
+			self.execute_request("ledOn?r=1023&g=500&b=500")
 			self.stop_timer()
 		else:
 			self._logger.info("event received %s" % event)
 
 	def execute_request(self, path):
-		url = ""
 		try:
 			hostname = self._settings.get(["hostname"])
 			url = "%s/%s" % (hostname, path)
@@ -89,8 +107,26 @@ class EnclosePlugin(octoprint.plugin.StartupPlugin,
 				self._logger.info("fetching data: %s)" % url)
 				r = requests.get(url)
 				self._logger.info("Response status: %s)" % r.status_code)
-		except:
-			self._logger.info("Error executing request: %s)" % url)
+		except Exception as ex:
+			self.log_error(ex)
+
+	def enclosure_callback(self, channel):
+		self._logger.info("Enclosure light button was pushed")
+		self.execute_request("ledOn?r=1023&g=1023&b=1023")
+		self.execute_request("fanOn")
+
+	def power_callback(self, channel):
+		self.currentPowerState = not self.currentPowerState
+		if self.currentPowerState:
+			GPIO.output(self.powerGPIORelayPin, GPIO.HIGH)
+		else:
+			GPIO.output(self.powerGPIORelayPin, GPIO.LOW)
+
+	def log_error(self, ex):
+		template = "An exception of type {0} occurred on {1}. Arguments:\n{2!r}"
+		message = template.format(
+			type(ex).__name__, inspect.currentframe().f_code.co_name, ex.args)
+		self._logger.warn(message)
 
 	##~~ Softwareupdate hook
 
