@@ -7,18 +7,22 @@ import octoprint.plugin
 import RPi.GPIO as GPIO
 
 import requests
+from flask import make_response, jsonify
+from octoprint.server import user_permission
 
 
 class EnclosePlugin(octoprint.plugin.StartupPlugin,
 					octoprint.plugin.ProgressPlugin,
 					octoprint.plugin.EventHandlerPlugin,
 					octoprint.plugin.SettingsPlugin,
+					octoprint.plugin.AssetPlugin,
+					octoprint.plugin.SimpleApiPlugin,
 					octoprint.plugin.TemplatePlugin):
 	TIMER_DURATION = 60 * 3
 
 	def __init__(self):
 		self.timer = None
-		self.currentPowerState = False
+		self.isPowerOn = False
 		self.enclosureGPIOButtonPin = 0
 		self.powerGPIOButtonPin = 0
 		self.powerGPIORelayPin = 0
@@ -111,22 +115,77 @@ class EnclosePlugin(octoprint.plugin.StartupPlugin,
 			self.log_error(ex)
 
 	def enclosure_callback(self, channel):
-		self._logger.info("Enclosure light button was pushed")
+		self._logger.info("Light button pressed")
+		self.turn_light_on()
+
+	def power_callback(self, channel):
+		self._logger.info("Power button pressed")
+		self.toggle_power()
+
+	def toggle_power(self):
+		self._logger.info("Toggling power")
+		if self.isPowerOn:
+			self.turn_power_off()
+		else:
+			self.turn_power_on()
+
+	def turn_power_on(self):
+		self._logger.info("Turning power on")
+		GPIO.output(self.powerGPIORelayPin, GPIO.HIGH)
+		self.isPowerOn = True
+		self.send_ui_event()
+
+	def turn_power_off(self):
+		self._logger.info("Turning power off")
+		GPIO.output(self.powerGPIORelayPin, GPIO.LOW)
+		self.isPowerOn = False
+		self.send_ui_event()
+
+	def turn_light_on(self):
+		self._logger.info("Turning enclosure lights on")
 		self.execute_request("ledOn?r=1023&g=1023&b=1023")
 		self.execute_request("fanOn")
 
-	def power_callback(self, channel):
-		self.currentPowerState = not self.currentPowerState
-		if self.currentPowerState:
-			GPIO.output(self.powerGPIORelayPin, GPIO.HIGH)
-		else:
-			GPIO.output(self.powerGPIORelayPin, GPIO.LOW)
+	def get_api_commands(self):
+		return dict(
+			turnPowerOn=[],
+			turnPowerOff=[],
+			togglePower=[],
+			getPowerState=[],
+			turnLightOn=[]
+		)
+
+	def on_api_command(self, command, data):
+		if not user_permission.can():
+			return make_response("Insufficient rights", 403)
+
+		if command == 'turnPowerOn':
+			if not self.isPowerOn:
+				self.turn_psu_on()
+		elif command == 'turnPowerOff':
+			if self.isPowerOn:
+				self.turn_psu_off()
+		elif command == 'togglePower':
+			self.toggle_power()
+		elif command == 'turnLightOn':
+			self.turn_light_on()
+		elif command == 'getPowerState':
+			return jsonify(isPowerOn=self.isPowerOn)
+
+	def send_ui_event(self):
+		self._plugin_manager.send_plugin_message(self._identifier, dict(isPowerOn=self.isPowerOn))
 
 	def log_error(self, ex):
 		template = "An exception of type {0} occurred on {1}. Arguments:\n{2!r}"
 		message = template.format(
 			type(ex).__name__, inspect.currentframe().f_code.co_name, ex.args)
 		self._logger.warn(message)
+
+	def get_assets(self):
+		return dict(
+			js=["js/enclose.js"],
+			css=["css/enclose.css"]
+		)
 
 	##~~ Softwareupdate hook
 
