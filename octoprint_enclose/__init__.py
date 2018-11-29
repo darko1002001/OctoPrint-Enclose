@@ -161,10 +161,10 @@ class EnclosePlugin(octoprint.plugin.StartupPlugin,
 
 		if command == 'turnPowerOn':
 			if not self.isPowerOn:
-				self.turn_psu_on()
+				self.turn_power_on()
 		elif command == 'turnPowerOff':
 			if self.isPowerOn:
-				self.turn_psu_off()
+				self.turn_power_off()
 		elif command == 'togglePower':
 			self.toggle_power()
 		elif command == 'turnLightOn':

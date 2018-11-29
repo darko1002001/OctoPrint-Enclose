@@ -6,6 +6,6 @@
    display: inline-block;
 }
 
-#enclosure-power-indicator .on i {
+#enclosure-power-indicator.on i {
    color: #0F0;
 }

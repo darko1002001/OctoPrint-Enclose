@@ -16,8 +16,8 @@ $(function () {
         };
 
         self.onStartup = function () {
-            self.isPowerOn.subscribe(function () {
-                if (self.isPowerOn()) {
+            self.isPowerOn.subscribe(function (isPowerOn) {
+                if (isPowerOn) {
                     self.powerIndicator.removeClass("off").addClass("on");
                 } else {
                     self.powerIndicator.removeClass("on").addClass("off");
