@@ -82,6 +82,6 @@ $(function () {
     ADDITIONAL_VIEWMODELS.push([
         EncloseViewModel,
         ["settingsViewModel", "loginStateViewModel"],
-        ["#navbar_plugin_enclose"]
+        ["#navbar_plugin_enclose", "#settings_plugin_enclose"]
     ]);
 });
