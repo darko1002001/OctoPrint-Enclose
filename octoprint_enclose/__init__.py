@@ -54,7 +54,7 @@ class EnclosePlugin(octoprint.plugin.StartupPlugin,
 
 	def get_template_configs(self):
 		return [
-			dict(type="settings", custom_bindings=False)
+			dict(type="settings", custom_bindings=True)
 		]
 
 	def get_template_vars(self):
